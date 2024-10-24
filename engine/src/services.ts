@@ -193,7 +193,7 @@ export function handleIncomingRequests(subscriptionId: string, message: any) {
           }
 
           redisManager.sendResponseToApi(subscriptionId, data);
-          redisManager.sendUpdatesToWs(data.stockSymbol, data.orderbook);
+          redisManager.sendUpdatesToWs(data.stockSymbol || "", data.orderbook);
         } catch (error: any) {
           redisManager.sendResponseToApi(subscriptionId, {
             status: false,

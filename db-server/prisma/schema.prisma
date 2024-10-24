@@ -19,20 +19,44 @@ model InrBalances {
   locked  Float
 }
 
-model Orderbook {
-  symbol String @id @unique
-  data   Json
+enum OrderStatus {
+  PENDING
+  FILLED
+  CANCELLED
 }
 
+// fetch all completed orders, for user1 
+// fetch all pending orders, for user1
+// fetch all cancelled orders, for user1
+
 model Order {
-  id          Int      @id @default(autoincrement())
+  id          Int         @id
   userId      String
   type        String
   quantity    Int
   price       Float
-  status      String
+  status      OrderStatus
   stockSymbol String
   filledQty   String
   stockType   String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime    @default(now())
+}
+
+enum TransactionType {
+  SOLD
+  BOUGHT
+  CANCEL
+  DEPOSIT
+}
+
+model Transaction {
+  id              Int             @id @default(autoincrement())
+  mainUserId      String
+  associateUserId String?
+  type            TransactionType
+  quantity        Int?
+  price           Float?
+  amount          Float?
+  stockSymbol     String?
+  createdAt       DateTime        @default(now())
 }

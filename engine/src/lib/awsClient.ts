@@ -40,19 +40,22 @@ export class S3Service {
 
   constructor(config: S3Config) {
     this.s3Client = new S3Client(config);
+    // logs keys
+    console.log("AWS_ACCESS_KEY_ID", process.env.AWS_ACCESS_KEY_ID);
+    console.log("AWS_SECRET_ACCESS_KEY", process.env.AWS_SECRET_ACCESS_KEY);
   }
 
   async uploadJsonToS3(jsonData: any): Promise<S3Response> {
     try {
-      const bucket = "probo-snapshot";
+      const bucket = "snapshot-probo";
       const fileName = "snapshot.json";
       // Convert JSON to string
       const jsonString = JSON.stringify(jsonData, null, 2);
 
       // Prepare the upload parameters
       const uploadParams = {
-        Bucket: "probo-snapshot",
-        Key: "/probosnapshot.json",
+        Bucket: bucket,
+        Key: fileName,
         Body: jsonString,
         ContentType: "application/json",
       };
@@ -71,7 +74,7 @@ export class S3Service {
 
   async fetchJson(): Promise<S3Response> {
     try {
-      const bucketName = "probo-snapshot";
+      const bucketName = "snapshot-probo";
       const fileName = "snapshot.json";
       const command = new GetObjectCommand({
         Bucket: bucketName,
@@ -84,11 +87,13 @@ export class S3Service {
         throw new Error("Empty response body");
       }
 
-      console.log("response", response);
+      const data = await response?.Body?.transformToString();
+      const res = JSON.parse(data);
+      const mutableRes = { ...res };
 
       return {
         success: true,
-        data: response,
+        data: mutableRes,
       };
     } catch (error: any) {
       console.error("Error fetching from S3:", error);

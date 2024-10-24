@@ -1,9 +1,10 @@
 import { s3Service } from "lib/awsClient";
 import { redisManager } from "lib/redisManager";
+import { nanoid } from "nanoid";
 import type {
   INRBalances,
   OnRampProps,
-  Orderbook,
+  OrderBook,
   OrderProps,
   StockBalances,
 } from "Types";
@@ -31,14 +32,13 @@ class EngineManager {
     },
   };
 
-  private ORDERBOOK: Orderbook = {};
+  private ORDERBOOK: OrderBook = {};
 
   constructor() {
     this.updateOrderBookDataFromS3();
-
     setInterval(() => {
       this.saveSnapshotToS3();
-    }, 1000 * 60);
+    }, 1000 * 60 * 100);
   }
 
   static instance: EngineManager;
@@ -290,22 +290,24 @@ class EngineManager {
         this.ORDERBOOK[stockSymbol][stockOption][price].total -=
           requiredQuantity;
 
-        for (const sellerId in this.ORDERBOOK[stockSymbol][stockOption][price]
-          .orders) {
-          const seller =
-            this.ORDERBOOK[stockSymbol][stockOption][price].orders[sellerId];
-          if (seller.quantity > 0) {
+        // sell Orders: //
+        for (const sellOrderId in this.ORDERBOOK[stockSymbol][stockOption][
+          price
+        ].orders) {
+          const sellerOrder =
+            this.ORDERBOOK[stockSymbol][stockOption][price].orders[sellOrderId];
+          if (sellerOrder.quantity > 0) {
             const availableQuantity = Math.min(
-              seller.quantity,
+              sellerOrder.quantity,
               requiredQuantity
             );
 
-            if (seller.type === "minted") {
+            if (sellerOrder.type === "minted") {
               // mint the required tokens
               this.mintStocks(
                 userId,
                 stockSymbol,
-                sellerId,
+                sellerOrder.userId,
                 price,
                 stockOption,
                 availableQuantity
@@ -315,7 +317,7 @@ class EngineManager {
               this.swapStocks(
                 userId,
                 stockSymbol,
-                sellerId,
+                sellerOrder.userId,
                 price,
                 stockOption,
                 availableQuantity
@@ -325,7 +327,7 @@ class EngineManager {
             requiredQuantity -= availableQuantity;
 
             this.ORDERBOOK[stockSymbol][stockOption][price].orders[
-              sellerId
+              sellOrderId
             ].quantity -= availableQuantity;
 
             if (requiredQuantity === 0) {
@@ -359,21 +361,24 @@ class EngineManager {
           this.ORDERBOOK[stockSymbol][stockOption][price] &&
           this.ORDERBOOK[stockSymbol][stockOption][price].total > 0
         ) {
-          for (const sellerId in this.ORDERBOOK[stockSymbol][stockOption][price]
-            .orders) {
-            const seller =
-              this.ORDERBOOK[stockSymbol][stockOption][price].orders[sellerId];
-            if (seller.quantity > 0) {
+          for (const sellerOrderId in this.ORDERBOOK[stockSymbol][stockOption][
+            price
+          ].orders) {
+            const sellerOrder =
+              this.ORDERBOOK[stockSymbol][stockOption][price].orders[
+                sellerOrderId
+              ];
+            if (sellerOrder.quantity > 0) {
               const availableQuantity = Math.min(
-                seller.quantity,
+                sellerOrder.quantity,
                 requiredQuantity
               );
 
-              if (seller.type === "minted") {
+              if (sellerOrder.type === "minted") {
                 this.mintStocks(
                   userId,
                   stockSymbol,
-                  sellerId,
+                  sellerOrder.userId,
                   price,
                   stockOption,
                   availableQuantity
@@ -383,20 +388,20 @@ class EngineManager {
                 this.swapStocks(
                   userId,
                   stockSymbol,
-                  sellerId,
+                  sellerOrder.userId,
                   price,
                   stockOption,
                   availableQuantity
                 );
               }
 
-              if (seller.quantity < requiredQuantity) {
+              if (sellerOrder.quantity < requiredQuantity) {
                 delete this.ORDERBOOK[stockSymbol][stockOption][price].orders[
-                  sellerId
+                  sellerOrderId
                 ];
               } else {
                 this.ORDERBOOK[stockSymbol][stockOption][price].orders[
-                  sellerId
+                  sellerOrderId
                 ].quantity -= availableQuantity;
               }
 
@@ -433,23 +438,30 @@ class EngineManager {
           correspondingPrice
         ].total += requiredQuantity;
 
-        if (
-          !this.ORDERBOOK[stockSymbol][oppositeStockOption][correspondingPrice]
-            .orders[userId]
-        ) {
-          this.ORDERBOOK[stockSymbol][oppositeStockOption][
-            correspondingPrice
-          ].orders[userId] = {
-            quantity: 0,
-            type: "minted",
-          };
-        }
+        const orderId = nanoid();
+
+        // if (
+        //   !this.ORDERBOOK[stockSymbol][oppositeStockOption][correspondingPrice]
+        //     .orders[userId]
+        // ) {
+        //   this.ORDERBOOK[stockSymbol][oppositeStockOption][
+        //     correspondingPrice
+        //   ].orders[userId] =
+        // }
 
         this.ORDERBOOK[stockSymbol][oppositeStockOption][
           correspondingPrice
-        ].orders[userId].quantity =
-          (this.ORDERBOOK[stockSymbol][oppositeStockOption][correspondingPrice]
-            .orders[userId].quantity || 0) + requiredQuantity;
+        ].orders[orderId] = {
+          quantity: requiredQuantity,
+          type: "minted",
+          userId: userId,
+        };
+
+        // this.ORDERBOOK[stockSymbol][oppositeStockOption][
+        //   correspondingPrice
+        // ].orders[userId].quantity =
+        //   (this.ORDERBOOK[stockSymbol][oppositeStockOption][correspondingPrice]
+        //     .orders[userId].quantity || 0) + requiredQuantity;
 
         // required INR balance will be locked
         this.INR_BALANCES[userId].locked += requiredQuantity * price;
@@ -518,15 +530,27 @@ class EngineManager {
 
       this.ORDERBOOK[stockSymbol][stockOption][price].total += quantity;
 
-      if (!this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId]) {
-        this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId] = {
-          quantity: 0,
-          type: "regular",
-        };
-      }
-      this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId].quantity =
-        (this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId]
-          .quantity || 0) + quantity;
+      // generate nano id
+
+      const orderId = nanoid();
+
+      this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId] = {
+        quantity: quantity,
+        type: "regular",
+        userId: userId,
+      };
+
+      // this.ORDERBOOK[stockSymbol][stockOption][price].orders;
+
+      // if (!this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId]) {
+      //   this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId] = {
+      //     quantity: 0,
+      //     type: "regular",
+      //   };
+      // }
+      // this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId].quantity =
+      //   (this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId]
+      //     .quantity || 0) + quantity;
 
       // lock the required quantity of stocks
       this.STOCK_BALANCES[userId][stockSymbol][stockOption].quantity -=
@@ -564,7 +588,9 @@ class EngineManager {
         }
       }
 
-      this.ORDERBOOK[stockSymbol] = { yes: {}, no: {} };
+      if (!this.ORDERBOOK[stockSymbol]) {
+        this.ORDERBOOK[stockSymbol] = { yes: {}, no: {} };
+      }
 
       if (!this.STOCK_BALANCES[userId]) {
         this.STOCK_BALANCES[userId] = {};
@@ -577,7 +603,7 @@ class EngineManager {
 
       return {
         status: true,
-        STOCK_BALANCES: this.STOCK_BALANCES[userId][stockSymbol],
+        STOCK_BALANCES: this.STOCK_BALANCES[userId],
       };
     } catch (error: any) {
       return { status: false, message: error.message };
