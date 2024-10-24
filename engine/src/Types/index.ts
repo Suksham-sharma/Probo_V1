@@ -56,7 +56,7 @@ type OrderBookPerPrice = {
   orders: OrderBookOrders;
 };
 
-type OrderBookPrices = Record<string, OrderBookPerPrice>;
+type OrderBookPrices = Record<number, OrderBookPerPrice>;
 
 type OrderBookPerStock = {
   yes: OrderBookPrices;
@@ -104,4 +104,12 @@ export type OrderProps = {
 export type OnRampProps = {
   userId: string;
   amount: number;
+};
+
+export type CancelOrderProps = {
+  userId: string;
+  stockSymbol: string;
+  orderId: string;
+  stockOption: "yes" | "no";
+  price: number;
 };

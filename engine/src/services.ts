@@ -183,20 +183,37 @@ export function handleIncomingRequests(subscriptionId: string, message: any) {
         }
       }
       break;
-    case "SELL_ORDER":
+    case "SELL_ORDER": {
+      try {
+        const data = engineManger.placeSellOrder(message.data);
+
+        if (!data?.orderbook) {
+          throw new Error(data?.message);
+        }
+
+        redisManager.sendResponseToApi(subscriptionId, data);
+        redisManager.sendUpdatesToWs(data.stockSymbol || "", data.orderbook);
+      } catch (error: any) {
+        redisManager.sendResponseToApi(subscriptionId, {
+          status: false,
+          error: error.message,
+        });
+      }
+      break;
+    }
+    case "CANCEL_ORDER":
       {
         try {
-          const data = engineManger.placeSellOrder(message.data);
+          const data = engineManger.cancelOrder(message.data);
 
-          if (!data?.orderbook) {
+          if (!data?.status) {
             throw new Error(data?.message);
           }
 
           redisManager.sendResponseToApi(subscriptionId, data);
-          redisManager.sendUpdatesToWs(data.stockSymbol || "", data.orderbook);
         } catch (error: any) {
           redisManager.sendResponseToApi(subscriptionId, {
-            status: false,
+            status: "CANCEL_ORDER_FAILED",
             error: error.message,
           });
         }

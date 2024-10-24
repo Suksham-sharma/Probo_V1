@@ -2,6 +2,7 @@ import { s3Service } from "lib/awsClient";
 import { redisManager } from "lib/redisManager";
 import { nanoid } from "nanoid";
 import type {
+  CancelOrderProps,
   INRBalances,
   OnRampProps,
   OrderBook,
@@ -54,9 +55,12 @@ class EngineManager {
     if (!this.ORDERBOOK || Object.keys(this.ORDERBOOK).length === 0) {
       console.log("Engine Manager Initialized");
       let snapshot = await s3Service.fetchJson();
+      const ParsedData = JSON.parse(snapshot.data);
 
-      if (snapshot?.success) {
-        this.ORDERBOOK = snapshot.data;
+      if (snapshot) {
+        this.ORDERBOOK = ParsedData;
+        console.log("Snapshot found and loaded successfully !!");
+        console.log("Snapshot Data", this.ORDERBOOK);
         return;
       }
 
@@ -571,6 +575,59 @@ class EngineManager {
         status: true,
         message: "Successfully placed the sell order",
         stockSymbol: stockSymbol,
+        orderbook: this.ORDERBOOK[stockSymbol],
+      };
+    } catch (error: any) {
+      return { status: false, message: error.message };
+    }
+  }
+
+  cancelOrder(cancelData: CancelOrderProps) {
+    try {
+      const { userId, stockSymbol, price, orderId, stockOption } = cancelData;
+      if (!this.INR_BALANCES[userId]) {
+        throw new Error("User with the given Id dosen't exists");
+      }
+
+      if (!this.ORDERBOOK[stockSymbol]) {
+        throw new Error("Orderbook dosen't exist");
+      }
+
+      if (
+        !this.ORDERBOOK[stockSymbol][stockOption][price] ||
+        !this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId]
+      ) {
+        throw new Error("Order dosen't exist");
+      }
+
+      if (
+        this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId]
+          .userId !== userId
+      ) {
+        throw new Error(
+          "User dosen't have the required permissions to cancel the order"
+        );
+      }
+
+      const order =
+        this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId];
+
+      if (order.type === "minted") {
+        this.INR_BALANCES[userId].locked -= order.quantity * price;
+        this.INR_BALANCES[userId].balance += order.quantity * price;
+      } else {
+        this.STOCK_BALANCES[userId][stockSymbol][stockOption].locked -=
+          order.quantity;
+        this.STOCK_BALANCES[userId][stockSymbol][stockOption].quantity +=
+          order.quantity;
+      }
+
+      delete this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId];
+      this.ORDERBOOK[stockSymbol][stockOption][price].total -= order.quantity;
+
+      return {
+        status: true,
+        message: "Order cancelled successfully",
         orderbook: this.ORDERBOOK[stockSymbol],
       };
     } catch (error: any) {

@@ -89,7 +89,7 @@ export class S3Service {
 
       const data = await response?.Body?.transformToString();
       const res = JSON.parse(data);
-      const mutableRes = { ...res };
+      let mutableRes = structuredClone(res);
 
       return {
         success: true,
