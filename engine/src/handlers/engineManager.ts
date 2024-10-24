@@ -1,3 +1,4 @@
+import { s3Service } from "lib/awsClient";
 import { redisManager } from "lib/redisManager";
 import type {
   INRBalances,
@@ -32,6 +33,14 @@ class EngineManager {
 
   private ORDERBOOK: Orderbook = {};
 
+  constructor() {
+    this.updateOrderBookDataFromS3();
+
+    setInterval(() => {
+      this.saveSnapshotToS3();
+    }, 1000 * 60);
+  }
+
   static instance: EngineManager;
 
   static getInstance(): EngineManager {
@@ -39,6 +48,28 @@ class EngineManager {
       this.instance = new EngineManager();
     }
     return this.instance;
+  }
+
+  private async updateOrderBookDataFromS3() {
+    if (!this.ORDERBOOK || Object.keys(this.ORDERBOOK).length === 0) {
+      console.log("Engine Manager Initialized");
+      let snapshot = await s3Service.fetchJson();
+
+      if (snapshot?.success) {
+        this.ORDERBOOK = snapshot.data;
+        return;
+      }
+
+      console.log("No snapshot found, initializing with empty data !!");
+    }
+  }
+
+  private async saveSnapshotToS3() {
+    try {
+      await s3Service.uploadJsonToS3(this.ORDERBOOK);
+    } catch (error) {
+      console.error("Error while saving snapshot to S3", error);
+    }
   }
 
   private mintStocks(

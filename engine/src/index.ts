@@ -1,8 +1,6 @@
 import { redisManager } from "lib/redisManager";
 
 async function main() {
-  await redisManager;
-
   while (true) {
     try {
       await redisManager.getRequestsFromQueue();
