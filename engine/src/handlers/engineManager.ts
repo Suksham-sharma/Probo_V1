@@ -51,6 +51,18 @@ class EngineManager {
     return this.instance;
   }
 
+  async sendInrAndStockBalancesToDB(InrBalances: any, stockBalances: any) {
+    redisManager.sendDataToDB_Engine({
+      action: "UPDATE_INR_BALANCE",
+      data: InrBalances,
+    });
+
+    redisManager.sendDataToDB_Engine({
+      action: "UPDATE_STOCK_BALANCE",
+      data: stockBalances,
+    });
+  }
+
   private async updateOrderBookDataFromS3() {
     if (!this.ORDERBOOK || Object.keys(this.ORDERBOOK).length === 0) {
       console.log("Engine Manager Initialized");
@@ -95,15 +107,21 @@ class EngineManager {
     this.INR_BALANCES[sellerId].locked -=
       availableQuantity * correspondingPrice;
 
-    redisManager.sendDataToDB_Engine({
-      action: "UPDATE_INR_BALANCE",
-      data: { [userId]: this.INR_BALANCES[userId] },
-    });
+    this.sendInrAndStockBalancesToDB(
+      { [userId]: this.INR_BALANCES[userId] },
+      {
+        userId: userId,
+        data: this.STOCK_BALANCES[userId],
+      }
+    );
 
-    redisManager.sendDataToDB_Engine({
-      action: "UPDATE_INR_BALANCE",
-      data: { [sellerId]: this.INR_BALANCES[sellerId] },
-    });
+    this.sendInrAndStockBalancesToDB(
+      { [sellerId]: this.INR_BALANCES[sellerId] },
+      {
+        userId: sellerId,
+        data: this.STOCK_BALANCES[sellerId],
+      }
+    );
   }
 
   private swapStocks(
@@ -121,48 +139,21 @@ class EngineManager {
     this.INR_BALANCES[userId].balance -= availableQuantity * price;
     this.INR_BALANCES[sellerId].balance += availableQuantity * price;
 
-    redisManager.sendDataToDB_Engine({
-      action: "UPDATE_INR_BALANCE",
-      data: { [userId]: this.INR_BALANCES[userId] },
-    });
-
-    redisManager.sendDataToDB_Engine({
-      action: "UPDATE_INR_BALANCE",
-      data: { [sellerId]: this.INR_BALANCES[sellerId] },
-    });
-  }
-
-  private handleSendUpdatesToDB(
-    userId: string,
-    stockSymbol: string,
-    stockOption: string,
-    price: number,
-    quantity: number,
-    type: "BUY" | "SELL",
-    orderStatus: "PENDING" | "COMPLETED" | "CANCELLED"
-  ) {
-    redisManager.sendDataToDB_Engine({
-      action: "UPDATE_STOCK_BALANCE",
-      data: { [userId]: this.STOCK_BALANCES[userId] },
-    });
-
-    redisManager.sendDataToDB_Engine({
-      action: "UPDATE_ORDERBOOK",
-      [stockSymbol]: this.ORDERBOOK[stockSymbol],
-    });
-
-    redisManager.sendDataToDB_Engine({
-      action: "UPSERT_ORDER",
-      data: {
-        type: type,
-        price: price,
-        quantity: quantity,
+    this.sendInrAndStockBalancesToDB(
+      { [userId]: this.INR_BALANCES[userId] },
+      {
         userId: userId,
-        stockType: stockOption,
-        stockSymbol: stockSymbol,
-        status: orderStatus,
-      },
-    });
+        data: this.STOCK_BALANCES[userId],
+      }
+    );
+
+    this.sendInrAndStockBalancesToDB(
+      { [sellerId]: this.INR_BALANCES[sellerId] },
+      {
+        usrerId: sellerId,
+        data: this.STOCK_BALANCES[sellerId],
+      }
+    );
   }
 
   createUser(userId: string) {
@@ -174,6 +165,10 @@ class EngineManager {
       console.log("userID", userId);
 
       this.INR_BALANCES[userId] = { balance: 0, locked: 0 };
+      redisManager.sendDataToDB_Engine({
+        action: "UPDATE_INR_BALANCE",
+        data: { [userId]: this.INR_BALANCES[userId] },
+      });
       return {
         status: true,
         userId: this.INR_BALANCES[userId],
@@ -223,6 +218,11 @@ class EngineManager {
       }
 
       this.INR_BALANCES[userId].balance += amount;
+
+      redisManager.sendDataToDB_Engine({
+        action: "UPDATE_INR_BALANCE",
+        data: { [userId]: this.INR_BALANCES[userId] },
+      });
       return {
         status: true,
         message: "Successfully added the amount",
@@ -285,6 +285,22 @@ class EngineManager {
         };
       }
 
+      const orderId = nanoid();
+      redisManager.sendDataToDB_Engine({
+        action: "UPSERT_ORDER",
+        data: {
+          orderId: orderId,
+          userId: userId,
+          type: "BUY",
+          stockSymbol: stockSymbol,
+          stockOption: stockOption,
+          price: price,
+          quantity: requiredQuantity,
+          filledQty: 0,
+          status: "PENDING",
+        },
+      });
+
       // if total is greater than the required quantity , then we'll proceed , no need to create corrosponding sell orders
       if (
         this.ORDERBOOK[stockSymbol][stockOption][price] &&
@@ -294,7 +310,6 @@ class EngineManager {
         this.ORDERBOOK[stockSymbol][stockOption][price].total -=
           requiredQuantity;
 
-        // sell Orders: //
         for (const sellOrderId in this.ORDERBOOK[stockSymbol][stockOption][
           price
         ].orders) {
@@ -328,7 +343,27 @@ class EngineManager {
               );
             }
 
+            redisManager.sendDataToDB_Engine({
+              action: "UPSERT_ORDER",
+              data: {
+                orderId: sellOrderId,
+                filledQty: availableQuantity,
+                status:
+                  sellerOrder.quantity === availableQuantity
+                    ? "FILLED"
+                    : "PENDING",
+              },
+            });
+
             requiredQuantity -= availableQuantity;
+            redisManager.sendDataToDB_Engine({
+              action: "UPSERT_ORDER",
+              data: {
+                orderId: orderId,
+                filledQty: availableQuantity,
+                status: requiredQuantity === 0 ? "FILLED" : "PENDING",
+              },
+            });
 
             this.ORDERBOOK[stockSymbol][stockOption][price].orders[
               sellOrderId
@@ -341,15 +376,10 @@ class EngineManager {
 
           // INR Balances will be updated automattically for the user and seller
 
-          this.handleSendUpdatesToDB(
-            userId,
-            stockSymbol,
-            stockOption,
-            price,
-            quantity,
-            "BUY",
-            "COMPLETED"
-          );
+          redisManager.sendDataToDB_Engine({
+            action: "UPDATE_INR_BALANCE",
+            data: { [userId]: this.INR_BALANCES[userId] },
+          });
 
           return {
             status: true,
@@ -413,19 +443,31 @@ class EngineManager {
                 availableQuantity;
 
               requiredQuantity -= availableQuantity;
+
+              redisManager.sendDataToDB_Engine({
+                action: "UPSERT_ORDER",
+                data: {
+                  orderId: orderId,
+                  filledQty: availableQuantity,
+                  status: "PENDING",
+                },
+              });
+
+              redisManager.sendDataToDB_Engine({
+                action: "UPSERT_ORDER",
+                data: {
+                  orderId: sellerOrderId,
+                  filledQty: availableQuantity,
+                  status:
+                    sellerOrder.quantity === availableQuantity
+                      ? "FILLED"
+                      : "PENDING",
+                },
+              });
             }
           }
 
           // records for partially filled orders
-          this.handleSendUpdatesToDB(
-            userId,
-            stockSymbol,
-            stockOption,
-            price,
-            quantity - requiredQuantity,
-            "BUY",
-            "COMPLETED"
-          );
         }
 
         if (
@@ -442,17 +484,6 @@ class EngineManager {
           correspondingPrice
         ].total += requiredQuantity;
 
-        const orderId = nanoid();
-
-        // if (
-        //   !this.ORDERBOOK[stockSymbol][oppositeStockOption][correspondingPrice]
-        //     .orders[userId]
-        // ) {
-        //   this.ORDERBOOK[stockSymbol][oppositeStockOption][
-        //     correspondingPrice
-        //   ].orders[userId] =
-        // }
-
         this.ORDERBOOK[stockSymbol][oppositeStockOption][
           correspondingPrice
         ].orders[orderId] = {
@@ -461,25 +492,9 @@ class EngineManager {
           userId: userId,
         };
 
-        // this.ORDERBOOK[stockSymbol][oppositeStockOption][
-        //   correspondingPrice
-        // ].orders[userId].quantity =
-        //   (this.ORDERBOOK[stockSymbol][oppositeStockOption][correspondingPrice]
-        //     .orders[userId].quantity || 0) + requiredQuantity;
-
         // required INR balance will be locked
         this.INR_BALANCES[userId].locked += requiredQuantity * price;
         this.INR_BALANCES[userId].balance -= requiredQuantity * price;
-
-        this.handleSendUpdatesToDB(
-          userId,
-          stockSymbol,
-          stockOption,
-          price,
-          quantity,
-          "BUY",
-          "PENDING"
-        );
 
         redisManager.sendDataToDB_Engine({
           action: "UPDATE_INR_BALANCE",
@@ -543,33 +558,29 @@ class EngineManager {
         type: "regular",
         userId: userId,
       };
-
-      // this.ORDERBOOK[stockSymbol][stockOption][price].orders;
-
-      // if (!this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId]) {
-      //   this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId] = {
-      //     quantity: 0,
-      //     type: "regular",
-      //   };
-      // }
-      // this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId].quantity =
-      //   (this.ORDERBOOK[stockSymbol][stockOption][price].orders[userId]
-      //     .quantity || 0) + quantity;
-
-      // lock the required quantity of stocks
       this.STOCK_BALANCES[userId][stockSymbol][stockOption].quantity -=
         quantity;
       this.STOCK_BALANCES[userId][stockSymbol][stockOption].locked += quantity;
 
-      this.handleSendUpdatesToDB(
-        userId,
-        stockSymbol,
-        stockOption,
-        price,
-        quantity,
-        "SELL",
-        "PENDING"
-      );
+      redisManager.sendDataToDB_Engine({
+        action: "UPSERT_ORDER",
+        data: {
+          orderId: orderId,
+          userId: userId,
+          type: "SELL",
+          stockSymbol: stockSymbol,
+          stockOption: stockOption,
+          price: price,
+          quantity: quantity,
+          filledQty: 0,
+          status: "PENDING",
+        },
+      });
+
+      redisManager.sendDataToDB_Engine({
+        action: "UPDATE_STOCK_BALANCE",
+        data: { userId: userId, data: this.STOCK_BALANCES[userId] },
+      });
 
       return {
         status: true,
@@ -585,13 +596,20 @@ class EngineManager {
   cancelOrder(cancelData: CancelOrderProps) {
     try {
       const { userId, stockSymbol, price, orderId, stockOption } = cancelData;
+
+      console.log("stockOption", stockOption);
+      console.log("price", price);
+      console.log("--", this.ORDERBOOK[stockSymbol][stockOption]);
       if (!this.INR_BALANCES[userId]) {
         throw new Error("User with the given Id dosen't exists");
       }
 
+      console.log("ORDERBOOK", this.ORDERBOOK);
+
       if (!this.ORDERBOOK[stockSymbol]) {
         throw new Error("Orderbook dosen't exist");
       }
+      console.log("2345");
 
       if (
         !this.ORDERBOOK[stockSymbol][stockOption][price] ||
@@ -599,6 +617,8 @@ class EngineManager {
       ) {
         throw new Error("Order dosen't exist");
       }
+
+      console.log("123456");
 
       if (
         this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId]
@@ -624,6 +644,19 @@ class EngineManager {
 
       delete this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId];
       this.ORDERBOOK[stockSymbol][stockOption][price].total -= order.quantity;
+
+      redisManager.sendDataToDB_Engine({
+        action: "UPDATE_STOCK_BALANCE",
+        data: { userId: userId, data: this.STOCK_BALANCES[userId] },
+      });
+
+      redisManager.sendDataToDB_Engine({
+        action: "UPSERT_ORDER",
+        data: {
+          orderId: orderId,
+          status: "CANCELLED",
+        },
+      });
 
       return {
         status: true,

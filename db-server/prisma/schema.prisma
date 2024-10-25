@@ -30,15 +30,15 @@ enum OrderStatus {
 // fetch all cancelled orders, for user1
 
 model Order {
-  id          Int         @id
+  id          String      @id
   userId      String
   type        String
   quantity    Int
   price       Float
   status      OrderStatus
   stockSymbol String
-  filledQty   String
-  stockType   String
+  filledQty   Int
+  stockType   String // yes - no 
   createdAt   DateTime    @default(now())
 }
 

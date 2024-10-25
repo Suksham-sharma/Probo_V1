@@ -1,18 +1,22 @@
 import { dbEngine } from "./dbEngine";
 
-export function handleIncomingRequests(message: any) {
+export async function handleIncomingRequests(message: any) {
   switch (message.action) {
-    // place sell order
-    // placing reverse sell order
-
+    // sell
+    // buy , cancel order .
     case "UPSERT_ORDER":
       {
-        const response = dbEngine.CreateOrUpdateOrder(message.data);
         try {
+          const response = await dbEngine.CreateOrUpdateOrder(message.data);
+          if (response) {
+            console.log(response);
+          }
+          return response;
         } catch (error: any) {}
       }
       break;
     // onramp , buy order
+    // cancel order , sell order
     case "UPDATE_INR_BALANCE":
       {
         try {
@@ -21,20 +25,13 @@ export function handleIncomingRequests(message: any) {
       }
       break;
     // buy order, sell order
+    // cancel order
     case "UPDATE_STOCK_BALANCE":
       {
         try {
           const response = dbEngine.createOrUpdateUserStockBalance(
             message.data
           );
-        } catch (error: any) {}
-      }
-      break;
-    // sell order , buy order
-    case "UPDATE_ORDERBOOK":
-      {
-        try {
-          const response = dbEngine.createOrUpdateOrderbook(message.data);
         } catch (error: any) {}
       }
       break;

@@ -17,7 +17,7 @@ interface OrderCancelBody {
   stockSymbol: string;
   price: number;
   orderId: string;
-  stockType: string;
+  stockOption: string;
 }
 
 orderRouter.post("/buy", async (req: any, res: any) => {
@@ -71,7 +71,7 @@ orderRouter.post("/sell", async (req: any, res: any) => {
 });
 
 orderRouter.post("/cancel", async (req: any, res: any) => {
-  const { userId, stockSymbol, price, orderId, stockType }: OrderCancelBody =
+  const { userId, stockSymbol, price, orderId, stockOption }: OrderCancelBody =
     req.body;
 
   const response = await redisManager.sendRequestAndSubscribe({
@@ -81,7 +81,7 @@ orderRouter.post("/cancel", async (req: any, res: any) => {
       stockSymbol,
       price,
       orderId,
-      stockType,
+      stockOption,
     },
   });
   res.json(response);

@@ -152,10 +152,6 @@ export function handleIncomingRequests(subscriptionId: string, message: any) {
           if (!data?.balance) {
             throw new Error(data?.message);
           }
-          redisManager.sendDataToDB_Engine({
-            action: "UPDATE_INR_BALANCE",
-            data: data,
-          });
           redisManager.sendResponseToApi(subscriptionId, data);
         } catch (error: any) {
           redisManager.sendResponseToApi(subscriptionId, {

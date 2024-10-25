@@ -17,22 +17,48 @@ class DB_Engine {
   }
 
   async CreateOrUpdateOrder(data: any) {
-    const order = await this.prisma.order.upsert({
-      data: {
-        type: data.type,
-        price: data.price,
-        quantity: data.quantity,
-        userId: data.userId,
-      },
-    });
+    try {
+      const findOrder = await this.prisma.order.findFirst({
+        where: { id: data.orderId },
+      });
 
-    return order;
+      if (!findOrder) {
+        const order = await this.prisma.order.create({
+          data: {
+            id: data?.orderId,
+            type: data?.type,
+            price: data?.price,
+            quantity: data?.quantity,
+            userId: data?.userId,
+            status: data?.status,
+            stockSymbol: data?.stockSymbol,
+            filledQty: data?.filledQty,
+            stockType: data?.stockOption,
+          },
+        });
+        return order;
+      }
+
+      const updatedOrder = await this.prisma.order.update({
+        where: { id: data.orderId },
+        data: {
+          filledQty: findOrder?.filledQty + (data?.filledQty ?? 0),
+          status: data?.status ?? findOrder.status,
+        },
+      });
+
+      return updatedOrder;
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   async createOrUpdateInrBalances(data: any) {
     try {
-      const userId = Object.keys(data.balance)[0];
-      const InrBalanceData = data.balance[userId];
+      console.log("data inside", data);
+      console.log(data);
+      const userId = Object.keys(data)[0];
+      const InrBalanceData = data[userId];
       const userBalance = await this.prisma.inrBalances.upsert({
         where: { userId: userId },
         update: {
@@ -51,30 +77,25 @@ class DB_Engine {
     }
   }
 
-  async createOrUpdateOrderbook(OrderbookData: any) {
-    const updatedOrderBook = await this.prisma.orderbook.upsert({
-      where: { symbol: OrderbookData.symbol },
-      update: { data: OrderbookData.data },
-      create: {
-        symbol: OrderbookData.symbol,
-        data: OrderbookData.data,
-      },
-    });
-    return updatedOrderBook;
-  }
-
   async createOrUpdateUserStockBalance(data: any) {
-    const userStockBalance = await this.prisma.user.upsert({
-      where: { id: data.userId },
-      update: {
-        stockBalances: data.data,
-      },
-      create: {
-        id: data.userId,
-        stockBalances: data.data,
-      },
-    });
-    return userStockBalance;
+    try {
+      console.log("data inside", data);
+      console.log(data?.userId);
+      const userStockBalance = await this.prisma.user.upsert({
+        where: { id: data?.userId },
+        update: {
+          stockBalances: data.data,
+        },
+        create: {
+          id: data?.userId,
+          stockBalances: data.data,
+        },
+      });
+      console.log(userStockBalance);
+      return userStockBalance;
+    } catch (error: any) {
+      console.log(error);
+    }
   }
 }
 
