@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import type { CreateTransactionData } from "./types";
 
 class DB_Engine {
   static instance: DB_Engine;
@@ -93,6 +94,26 @@ class DB_Engine {
       });
       console.log(userStockBalance);
       return userStockBalance;
+    } catch (error: any) {
+      console.log(error);
+    }
+  }
+
+  async createTransaction(data: CreateTransactionData) {
+    try {
+      const transaction = await this.prisma.transaction.create({
+        data: {
+          mainUserId: data?.userId,
+          type: data?.type,
+          amount: data?.amount,
+          associateUserId: data?.associateUserId,
+          stockSymbol: data?.stockSymbol,
+          price: data?.price,
+          quantity: data?.quantity,
+          stockType: data?.stockType,
+        },
+      });
+      return transaction;
     } catch (error: any) {
       console.log(error);
     }

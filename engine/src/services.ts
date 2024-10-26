@@ -39,6 +39,12 @@ export function handleIncomingRequests(subscriptionId: string, message: any) {
         }
       }
       break;
+    case "END_MARKET":
+      {
+        try {
+        } catch (error: any) {}
+      }
+      break;
     case "GET_INR":
       {
         try {

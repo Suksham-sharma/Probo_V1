@@ -113,3 +113,14 @@ export type CancelOrderProps = {
   stockOption: "yes" | "no";
   price: number;
 };
+
+export type Market = {
+  stockSymbol: string;
+  price: number;
+  heading: string;
+  eventType: string;
+  type: "automatic" | "manual";
+  status: "Active" |  "COMPLETED"
+};
+
+export type Markets = Record<string , Market>

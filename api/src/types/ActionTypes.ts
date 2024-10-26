@@ -10,6 +10,7 @@ const CREATE_USER = "CREATE_USER";
 const CREATE_MARKET = "CREATE_MARKET";
 const ONRAMP_INR = "ONRAMP_INR";
 const CANCEL_ORDER = "CANCEL_ORDER";
+const END_MARKET = "END_MARKET";
 
 export const ActionTypes = {
   SELL_ORDER, // done
@@ -24,4 +25,5 @@ export const ActionTypes = {
   CREATE_MARKET, // done
   ONRAMP_INR,
   CANCEL_ORDER,
+  END_MARKET,
 };

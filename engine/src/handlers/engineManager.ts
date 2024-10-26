@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import type {
   CancelOrderProps,
   INRBalances,
+  Markets,
   OnRampProps,
   OrderBook,
   OrderProps,
@@ -34,6 +35,8 @@ class EngineManager {
   };
 
   private ORDERBOOK: OrderBook = {};
+
+  private MARKETS: Markets = {};
 
   constructor() {
     this.updateOrderBookDataFromS3();
@@ -154,6 +157,122 @@ class EngineManager {
         data: this.STOCK_BALANCES[sellerId],
       }
     );
+  }
+
+  private ProcessWinnings(stockSymbol: string, winningStock: "yes" | "no") {
+    const oppositeStockOption = winningStock === "yes" ? "no" : "yes";
+
+    const STOCK_BALANCES = this.STOCK_BALANCES;
+
+    for (const user in STOCK_BALANCES) {
+      if (STOCK_BALANCES[user][stockSymbol]) {
+        const stockBalance = STOCK_BALANCES[user][stockSymbol][winningStock];
+
+        // give the person winning stocks * 10 , and for the opposite one 0
+        // , and clear this from stock balances
+
+        this.INR_BALANCES[user].balance += stockBalance.quantity * 10;
+      }
+      delete STOCK_BALANCES[user][stockSymbol];
+    }
+  }
+
+  private ClearOrderBook(stockSymbol: string) {
+    try {
+      if (!stockSymbol) {
+        throw new Error("Stock symbol is required");
+      }
+
+      const orderBook = this.ORDERBOOK[stockSymbol];
+      if (!orderBook) {
+        throw new Error(`Orderbook for symbol '${stockSymbol}' doesn't exist`);
+      }
+
+      Object.entries(orderBook).forEach(([stockOption, priceEntries]) => {
+        Object.entries(priceEntries).forEach(([price, entry]) => {
+          const priceNum = Number(price);
+          if (isNaN(priceNum)) {
+            throw new Error(`Invalid price value: ${price}`);
+          }
+
+          Object.values(entry.orders).forEach((order) => {
+            this.processOrder(
+              order,
+              stockSymbol,
+              stockOption === "yes" ? "yes" : "no",
+              priceNum
+            );
+          });
+        });
+      });
+
+      delete this.ORDERBOOK[stockSymbol];
+
+      return { status: true };
+    } catch (error) {
+      return {
+        status: false,
+        message:
+          error instanceof Error ? error.message : "An unknown error occurred",
+      };
+    }
+  }
+
+  private processOrder(
+    order: any,
+    stockSymbol: string,
+    stockOption: "yes" | "no",
+    price: number
+  ): void {
+    if (
+      !this.INR_BALANCES[order.userId] ||
+      !this.STOCK_BALANCES[order.userId]?.[stockSymbol]?.[stockOption]
+    ) {
+      throw new Error(`Invalid balances for user ${order.userId}`);
+    }
+
+    const amount = order.quantity * price;
+
+    switch (order.type) {
+      case "minted":
+        this.processMintedOrder(order.userId, amount);
+        break;
+      case "regular":
+        this.processRegularOrder(
+          order.userId,
+          stockSymbol,
+          stockOption,
+          order.quantity
+        );
+        break;
+      default:
+        throw new Error(`Unknown order type: ${order.type}`);
+    }
+  }
+
+  private processMintedOrder(userId: string, amount: number): void {
+    const userBalance = this.INR_BALANCES[userId];
+    if (userBalance.locked < amount) {
+      throw new Error(`Insufficient locked balance for user ${userId}`);
+    }
+
+    userBalance.locked -= amount;
+    userBalance.balance += amount;
+  }
+
+  private processRegularOrder(
+    userId: string,
+    stockSymbol: string,
+    stockOption: "yes" | "no",
+    quantity: number
+  ): void {
+    const stockBalance = this.STOCK_BALANCES[userId][stockSymbol][stockOption];
+    if (stockBalance.locked < quantity) {
+      throw new Error(`Insufficient locked stock quantity for user ${userId}`);
+    }
+
+    stockBalance.locked -= quantity;
+    stockBalance.quantity += quantity;
   }
 
   createUser(userId: string) {
@@ -668,8 +787,31 @@ class EngineManager {
     }
   }
 
-  createMarket(stockSymbol: string) {
+  createMarket(data: any) {
     try {
+      const stockSymbol = data?.stockSymbol;
+
+      if (!stockSymbol) {
+        throw new Error("Stock Symbol is required");
+      }
+
+      const marketId = nanoid();
+
+      if (this.MARKETS[marketId]) {
+        throw new Error("Market already exists");
+      }
+
+      this.MARKETS[marketId] = {
+        stockSymbol: stockSymbol,
+        type: data.type == "automatic" ? "automatic" : "manual",
+        heading: data.heading,
+        eventType: data.eventType,
+        price: data.price,
+        status: "Active",
+      };
+
+      console.log(this.MARKETS);
+
       const userId = "user1";
 
       for (const user in this.STOCK_BALANCES) {
@@ -694,6 +836,39 @@ class EngineManager {
       return {
         status: true,
         STOCK_BALANCES: this.STOCK_BALANCES[userId],
+      };
+    } catch (error: any) {
+      return { status: false, message: error.message };
+    }
+  }
+
+  endMarket(data: any) {
+    try {
+      const stockSymbol = data?.stockSymbol;
+      const marketId = data?.marketId;
+      const winningStock = data?.winningStock;
+
+      if (!stockSymbol || !marketId) {
+        throw new Error("Stock Symbol and Market Id are required");
+      }
+
+      if (!this.MARKETS[marketId]) {
+        throw new Error("Market dosen't exist");
+      }
+
+      if (this.MARKETS[marketId].status === "COMPLETED") {
+        throw new Error("Market already ended");
+      }
+
+      this.MARKETS[marketId].status = "COMPLETED";
+
+      this.ClearOrderBook(stockSymbol);
+      this.ProcessWinnings(stockSymbol, winningStock);
+
+      return {
+        status: true,
+        message: "Market ended successfully",
+        market: this.MARKETS[marketId],
       };
     } catch (error: any) {
       return { status: false, message: error.message };

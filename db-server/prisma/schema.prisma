@@ -58,5 +58,6 @@ model Transaction {
   price           Float?
   amount          Float?
   stockSymbol     String?
+  stockType       String?
   createdAt       DateTime        @default(now())
 }
