@@ -26,7 +26,7 @@ export function handleIncomingRequests(subscriptionId: string, message: any) {
         try {
           const data = engineManger.createMarket(message.data);
 
-          if (!data?.STOCK_BALANCES) {
+          if (!data?.status) {
             throw new Error(data?.message);
           }
 
@@ -42,7 +42,17 @@ export function handleIncomingRequests(subscriptionId: string, message: any) {
     case "END_MARKET":
       {
         try {
-        } catch (error: any) {}
+          const data = engineManger.endMarket(message.data);
+
+          if (!data?.status) {
+            throw new Error(data?.message);
+          }
+        } catch (error: any) {
+          redisManager.sendResponseToApi(subscriptionId, {
+            status: "MARKET_END_FAILED",
+            error: error.message,
+          });
+        }
       }
       break;
     case "GET_INR":

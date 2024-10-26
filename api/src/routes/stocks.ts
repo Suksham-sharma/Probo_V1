@@ -41,7 +41,7 @@ type CreateMarketRequestBody = {
   type: "automatic" | "manual";
   endsIn?: number;
   sourceOfTruth: "automatic" | "manual_trigger";
-  endTime?: number;
+  endAfterTime: number;
   heading?: string;
   eventType?: string;
   repeatTime?: number;
@@ -55,24 +55,33 @@ stocksRouter.post("/createMarket", async (req: any, res: any) => {
     type,
     endsIn,
     sourceOfTruth,
-    endTime,
     heading,
     eventType,
     repeatTime,
+    endAfterTime,
   }: CreateMarketRequestBody = req.body;
 
-  // create market  request will be be called in
+  const endTime = new Date().getTime() + endAfterTime;
+
   console.log("body", req.body);
 
   if (type === "automatic" && sourceOfTruth === "automatic") {
-    console.log("entereed");
-    if (automMaticMarketsAllowed.includes(stockSymbol)) {
-      console.log("entereed 2 ");
-      console.log("repeatTime", repeatTime);
-      cron.schedule(`*/${repeatTime} * * * *`, async () => {
-        console.log("entered 3");
-        const couldBePrice = await createMarketCondition(stockSymbol);
+    console.log("entered");
 
+    if (automMaticMarketsAllowed.includes(stockSymbol)) {
+      console.log("entered 2");
+
+      // Ensure repeatInterval is parsed as an integer
+      const repeatInterval = repeatTime ? repeatTime : 0;
+      if (isNaN(repeatInterval)) {
+        return res.status(400).send("Invalid repeatTime");
+      }
+
+      // Set up the interval for market creation
+      const interval = setInterval(async () => {
+        console.log("entered 3");
+
+        const couldBePrice = await createMarketCondition(stockSymbol);
         const stockUniqueStockSymbol = `${stockSymbol}-${new Date().getTime()}`;
 
         console.log("Creating Market", stockUniqueStockSymbol);
@@ -88,6 +97,12 @@ stocksRouter.post("/createMarket", async (req: any, res: any) => {
           },
         });
 
+        const marketId = Object.keys(createdMarket).find(
+          (key) => key !== "status"
+        );
+        console.log("marketId", marketId);
+        console.log("createdMarket", createdMarket);
+
         setTimeout(async () => {
           const stockData = await getCurrentMarketPrice(stockSymbol);
           const currentPrice = stockData[stockSymbol].inr;
@@ -97,14 +112,28 @@ stocksRouter.post("/createMarket", async (req: any, res: any) => {
           const response = await redisManager.sendRequestAndSubscribe({
             action: ActionTypes.END_MARKET,
             data: {
-              stockUniqueStockSymbol,
-              marketId: createdMarket?.marketId,
+              stockSymbol: stockUniqueStockSymbol,
+              marketId: marketId,
               winningStock,
             },
           });
+
+          const currentTime = new Date().getTime();
+          if (currentTime > endTime) {
+            clearInterval(interval);
+          }
           return response;
         }, endsIn);
-      });
+      }, repeatInterval);
+
+      // Send a response immediately after scheduling the interval
+      return res.status(200).send("Market creation scheduled");
+    } else {
+      console.log("Stock symbol not allowed for automatic markets");
+      return res.status(400).send("Stock symbol not allowed");
     }
+  } else {
+    console.log("Invalid market type or sourceOfTruth");
+    return res.status(400).send("Invalid type or sourceOfTruth");
   }
 });

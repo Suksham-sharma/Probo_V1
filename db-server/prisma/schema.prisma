@@ -61,3 +61,17 @@ model Transaction {
   stockType       String?
   createdAt       DateTime        @default(now())
 }
+
+model Market {
+  id            Int    @id @default(autoincrement())
+  stockSymbol   String @unique
+  type          String
+  sourceOfTruth String
+  heading       String
+  eventType     String
+
+  repeatTime   Int
+  endAfterTime Int
+  createdAt    DateTime @default(now())
+  activeStatus String   @default("ACTIVE")
+}

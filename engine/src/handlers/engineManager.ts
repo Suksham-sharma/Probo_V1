@@ -72,12 +72,12 @@ class EngineManager {
       let snapshot = await s3Service.fetchJson();
       const ParsedData = JSON.parse(snapshot.data);
 
-      if (snapshot) {
-        this.ORDERBOOK = ParsedData;
-        console.log("Snapshot found and loaded successfully !!");
-        console.log("Snapshot Data", this.ORDERBOOK);
-        return;
-      }
+      // if (snapshot) {
+      //   this.ORDERBOOK = ParsedData;
+      //   console.log("Snapshot found and loaded successfully !!");
+      //   console.log("Snapshot Data", this.ORDERBOOK);
+      //   return;
+      // }
 
       console.log("No snapshot found, initializing with empty data !!");
     }
@@ -162,6 +162,8 @@ class EngineManager {
   private ProcessWinnings(stockSymbol: string, winningStock: "yes" | "no") {
     const oppositeStockOption = winningStock === "yes" ? "no" : "yes";
 
+    console.log("Processing Winnings for", stockSymbol, winningStock);
+
     const STOCK_BALANCES = this.STOCK_BALANCES;
 
     for (const user in STOCK_BALANCES) {
@@ -179,6 +181,8 @@ class EngineManager {
 
   private ClearOrderBook(stockSymbol: string) {
     try {
+      console.log("Clearing Orderbook for", stockSymbol);
+
       if (!stockSymbol) {
         throw new Error("Stock symbol is required");
       }
@@ -231,7 +235,13 @@ class EngineManager {
       throw new Error(`Invalid balances for user ${order.userId}`);
     }
 
-    const amount = order.quantity * price;
+    console.log("processing Orders ....", order.userId);
+
+    // price for user to give back
+    // 10 - price
+    const correspondingPrice = 10 - price;
+
+    const amount = order.quantity * correspondingPrice;
 
     switch (order.type) {
       case "minted":
@@ -251,13 +261,18 @@ class EngineManager {
   }
 
   private processMintedOrder(userId: string, amount: number): void {
+    console.log("Processing Minted Order for", userId);
     const userBalance = this.INR_BALANCES[userId];
     if (userBalance.locked < amount) {
       throw new Error(`Insufficient locked balance for user ${userId}`);
     }
 
+    console.log("User BAlance BEfore ", userBalance);
+
     userBalance.locked -= amount;
     userBalance.balance += amount;
+
+    console.log("User balance affter", userBalance);
   }
 
   private processRegularOrder(
@@ -266,6 +281,7 @@ class EngineManager {
     stockOption: "yes" | "no",
     quantity: number
   ): void {
+    console.log("Processing regular Order for", userId);
     const stockBalance = this.STOCK_BALANCES[userId][stockSymbol][stockOption];
     if (stockBalance.locked < quantity) {
       throw new Error(`Insufficient locked stock quantity for user ${userId}`);
@@ -810,7 +826,7 @@ class EngineManager {
         status: "Active",
       };
 
-      console.log(this.MARKETS);
+      console.log("Current Markets", this.MARKETS);
 
       const userId = "user1";
 
@@ -834,8 +850,8 @@ class EngineManager {
       };
 
       return {
+        [marketId]: this.MARKETS[marketId],
         status: true,
-        STOCK_BALANCES: this.STOCK_BALANCES[userId],
       };
     } catch (error: any) {
       return { status: false, message: error.message };
@@ -847,6 +863,8 @@ class EngineManager {
       const stockSymbol = data?.stockSymbol;
       const marketId = data?.marketId;
       const winningStock = data?.winningStock;
+
+      console.log("END MARKET", stockSymbol, marketId, winningStock);
 
       if (!stockSymbol || !marketId) {
         throw new Error("Stock Symbol and Market Id are required");
