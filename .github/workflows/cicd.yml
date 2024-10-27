@@ -1,4 +1,4 @@
-name: Deploy with Docker Compose
+name: CICD for Probo
 
 on:
   push:
