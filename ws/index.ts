@@ -1,8 +1,8 @@
 import { createClient } from "redis";
 import WebSocket, { WebSocketServer } from "ws";
 import http from "http";
-
-const redisClient = createClient();
+const redisURL = process.env.URL || "redis://localhost:6379";
+const redisClient = createClient({ url: redisURL });
 
 async function SendOrderBookToSubscribers(symbol: string, orderBook: any) {
   const subscription = SubsriptionData.find((data) => data.symbol === symbol);
