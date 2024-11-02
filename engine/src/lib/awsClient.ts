@@ -88,7 +88,7 @@ export class S3Service {
       }
 
       const data = await response?.Body?.transformToString();
-      console.log("Data fetched from S3:", data);
+      // console.log("Data fetched from S3:", data);
       let mutableRes = structuredClone(data);
 
       return {

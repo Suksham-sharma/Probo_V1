@@ -27,7 +27,7 @@ export interface StockBalances {
 //         [orderId: string]: {
 //           userId: string;
 //           quantity: number;
-//           type: "minted" | "regular";
+//           type: "reverted" | "regular";
 //         };
 //         totalx: string;
 //       };
@@ -46,7 +46,7 @@ export interface StockBalances {
 interface OrderDetails {
   userId: string;
   quantity: number;
-  type: "minted" | "regular";
+  type: "reverted" | "regular";
 }
 
 type OrderBookOrders = Record<string, OrderDetails>;
@@ -65,7 +65,7 @@ type OrderBookPerStock = {
 
 export type OrderBook = Record<string, OrderBookPerStock>;
 
-// price: {total: 78, orders: {[orderId]: {userId: "123", quantity:10 type:"minted" }}}
+// price: {total: 78, orders: {[orderId]: {userId: "123", quantity:10 type:"reverted" }}}
 
 // export interface OrderBookPerStock {
 //   yes: {
@@ -74,7 +74,7 @@ export type OrderBook = Record<string, OrderBookPerStock>;
 //       orders: {
 //         [userId: string]: {
 //           quantity: number;
-//           type: "minted" | "regular";
+//           type: "reverted" | "regular";
 //         };
 //       };
 //     };
@@ -85,7 +85,7 @@ export type OrderBook = Record<string, OrderBookPerStock>;
 //       orders: {
 //         [userId: string]: {
 //           quantity: number;
-//           type: "minted" | "regular";
+//           type: "reverted" | "regular";
 //         };
 //       };
 //     };
@@ -98,7 +98,7 @@ export type OrderProps = {
   stockSymbol: string;
   quantity: number;
   price: number;
-  stockOption: "yes" | "no";
+  stockType: "yes" | "no";
 };
 
 export type OnRampProps = {
@@ -110,7 +110,7 @@ export type CancelOrderProps = {
   userId: string;
   stockSymbol: string;
   orderId: string;
-  stockOption: "yes" | "no";
+  stockType: "yes" | "no";
   price: number;
 };
 
@@ -120,7 +120,7 @@ export type Market = {
   heading: string;
   eventType: string;
   type: "automatic" | "manual";
-  status: "Active" |  "COMPLETED"
+  status: "Active" | "COMPLETED";
 };
 
-export type Markets = Record<string , Market>
+export type Markets = Record<string, Market>;

@@ -21,6 +21,22 @@ export function handleIncomingRequests(subscriptionId: string, message: any) {
         }
       }
       break;
+    case "RESET":
+      {
+        try {
+          const data = engineManger.resetData();
+          if (!data?.status) {
+            throw new Error(data?.message);
+          }
+          redisManager.sendResponseToApi(subscriptionId, data);
+        } catch (error: any) {
+          redisManager.sendResponseToApi(subscriptionId, {
+            status: "RESET_FAILED",
+            error: error.message,
+          });
+        }
+      }
+      break;
     case "CREATE_MARKET":
       {
         try {
@@ -129,7 +145,7 @@ export function handleIncomingRequests(subscriptionId: string, message: any) {
         try {
           const data = engineManger.getUserINRBalance(message.data);
 
-          if (!data?.balance) {
+          if (!data?.msg) {
             throw new Error(data?.message);
           }
 
@@ -165,7 +181,7 @@ export function handleIncomingRequests(subscriptionId: string, message: any) {
         try {
           const data = engineManger.OnRampUserBalance(message.data);
 
-          if (!data?.balance) {
+          if (!data?.msg) {
             throw new Error(data?.message);
           }
           redisManager.sendResponseToApi(subscriptionId, data);

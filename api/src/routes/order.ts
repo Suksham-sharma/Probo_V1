@@ -9,7 +9,7 @@ interface OrderRequestBody {
   stockSymbol: string;
   quantity: number;
   price: number;
-  stockOption: "yes" | "no";
+  stockType: "yes" | "no";
 }
 
 interface OrderCancelBody {
@@ -17,17 +17,12 @@ interface OrderCancelBody {
   stockSymbol: string;
   price: number;
   orderId: string;
-  stockOption: string;
+  stockType: string;
 }
 
 orderRouter.post("/buy", async (req: any, res: any) => {
-  const {
-    userId,
-    stockSymbol,
-    quantity,
-    price,
-    stockOption,
-  }: OrderRequestBody = req.body;
+  const { userId, stockSymbol, quantity, price, stockType }: OrderRequestBody =
+    req.body;
 
   const response = await redisManager.sendRequestAndSubscribe({
     action: ActionTypes.BUY_ORDER,
@@ -36,7 +31,7 @@ orderRouter.post("/buy", async (req: any, res: any) => {
       stockSymbol,
       quantity,
       price,
-      stockOption,
+      stockType,
     },
   });
 
@@ -46,13 +41,8 @@ orderRouter.post("/buy", async (req: any, res: any) => {
 });
 
 orderRouter.post("/sell", async (req: any, res: any) => {
-  const {
-    userId,
-    stockSymbol,
-    quantity,
-    price,
-    stockOption,
-  }: OrderRequestBody = req.body;
+  const { userId, stockSymbol, quantity, price, stockType }: OrderRequestBody =
+    req.body;
 
   const response = await redisManager.sendRequestAndSubscribe({
     action: ActionTypes.SELL_ORDER,
@@ -61,7 +51,7 @@ orderRouter.post("/sell", async (req: any, res: any) => {
       stockSymbol,
       quantity,
       price,
-      stockOption,
+      stockType,
     },
   });
 
@@ -71,7 +61,7 @@ orderRouter.post("/sell", async (req: any, res: any) => {
 });
 
 orderRouter.post("/cancel", async (req: any, res: any) => {
-  const { userId, stockSymbol, price, orderId, stockOption }: OrderCancelBody =
+  const { userId, stockSymbol, price, orderId, stockType }: OrderCancelBody =
     req.body;
 
   const response = await redisManager.sendRequestAndSubscribe({
@@ -81,7 +71,7 @@ orderRouter.post("/cancel", async (req: any, res: any) => {
       stockSymbol,
       price,
       orderId,
-      stockOption,
+      stockType,
     },
   });
   res.json(response);

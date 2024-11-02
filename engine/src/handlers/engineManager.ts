@@ -12,27 +12,9 @@ import type {
 } from "Types";
 
 class EngineManager {
-  private INR_BALANCES: INRBalances = {
-    user1: {
-      balance: 300,
-      locked: 0,
-    },
-  };
+  private INR_BALANCES: INRBalances = {};
 
-  private STOCK_BALANCES: StockBalances = {
-    user1: {
-      IND_BNG: {
-        yes: {
-          quantity: 20,
-          locked: 0,
-        },
-        no: {
-          quantity: 10,
-          locked: 0,
-        },
-      },
-    },
-  };
+  private STOCK_BALANCES: StockBalances = {};
 
   private ORDERBOOK: OrderBook = {};
 
@@ -70,7 +52,7 @@ class EngineManager {
     if (!this.ORDERBOOK || Object.keys(this.ORDERBOOK).length === 0) {
       console.log("Engine Manager Initialized");
       let snapshot = await s3Service.fetchJson();
-      const ParsedData = JSON.parse(snapshot.data);
+      // const ParsedData = JSON.parse(snapshot.data);
 
       // if (snapshot) {
       //   this.ORDERBOOK = ParsedData;
@@ -96,15 +78,15 @@ class EngineManager {
     stockSymbol: string,
     sellerId: string,
     price: number,
-    stockOption: "yes" | "no",
+    stockType: "yes" | "no",
     availableQuantity: number
   ) {
-    const oppositeStockOption = stockOption === "yes" ? "no" : "yes";
+    const oppositestockType = stockType === "yes" ? "no" : "yes";
     const correspondingPrice = 10 - price;
 
-    this.STOCK_BALANCES[sellerId][stockSymbol][oppositeStockOption].quantity +=
+    this.STOCK_BALANCES[sellerId][stockSymbol][oppositestockType].quantity +=
       availableQuantity;
-    this.STOCK_BALANCES[userId][stockSymbol][stockOption].quantity +=
+    this.STOCK_BALANCES[userId][stockSymbol][stockType].quantity +=
       availableQuantity;
     this.INR_BALANCES[userId].balance -= availableQuantity * price;
     this.INR_BALANCES[sellerId].locked -=
@@ -132,12 +114,12 @@ class EngineManager {
     stockSymbol: string,
     sellerId: string,
     price: number,
-    stockOption: "yes" | "no",
+    stockType: "yes" | "no",
     availableQuantity: number
   ) {
-    this.STOCK_BALANCES[sellerId][stockSymbol][stockOption].locked -=
+    this.STOCK_BALANCES[sellerId][stockSymbol][stockType].locked -=
       availableQuantity;
-    this.STOCK_BALANCES[userId][stockSymbol][stockOption].quantity +=
+    this.STOCK_BALANCES[userId][stockSymbol][stockType].quantity +=
       availableQuantity;
     this.INR_BALANCES[userId].balance -= availableQuantity * price;
     this.INR_BALANCES[sellerId].balance += availableQuantity * price;
@@ -160,7 +142,7 @@ class EngineManager {
   }
 
   private ProcessWinnings(stockSymbol: string, winningStock: "yes" | "no") {
-    const oppositeStockOption = winningStock === "yes" ? "no" : "yes";
+    const oppositestockType = winningStock === "yes" ? "no" : "yes";
 
     console.log("Processing Winnings for", stockSymbol, winningStock);
 
@@ -173,7 +155,7 @@ class EngineManager {
         // give the person winning stocks * 10 , and for the opposite one 0
         // , and clear this from stock balances
 
-        this.INR_BALANCES[user].balance += stockBalance.quantity * 10;
+        this.INR_BALANCES[user].balance += stockBalance.quantity * 1000;
       }
       delete STOCK_BALANCES[user][stockSymbol];
     }
@@ -192,7 +174,7 @@ class EngineManager {
         throw new Error(`Orderbook for symbol '${stockSymbol}' doesn't exist`);
       }
 
-      Object.entries(orderBook).forEach(([stockOption, priceEntries]) => {
+      Object.entries(orderBook).forEach(([stockType, priceEntries]) => {
         Object.entries(priceEntries).forEach(([price, entry]) => {
           const priceNum = Number(price);
           if (isNaN(priceNum)) {
@@ -203,7 +185,7 @@ class EngineManager {
             this.processOrder(
               order,
               stockSymbol,
-              stockOption === "yes" ? "yes" : "no",
+              stockType === "yes" ? "yes" : "no",
               priceNum
             );
           });
@@ -225,12 +207,12 @@ class EngineManager {
   private processOrder(
     order: any,
     stockSymbol: string,
-    stockOption: "yes" | "no",
+    stockType: "yes" | "no",
     price: number
   ): void {
     if (
       !this.INR_BALANCES[order.userId] ||
-      !this.STOCK_BALANCES[order.userId]?.[stockSymbol]?.[stockOption]
+      !this.STOCK_BALANCES[order.userId]?.[stockSymbol]?.[stockType]
     ) {
       throw new Error(`Invalid balances for user ${order.userId}`);
     }
@@ -244,14 +226,14 @@ class EngineManager {
     const amount = order.quantity * correspondingPrice;
 
     switch (order.type) {
-      case "minted":
-        this.processMintedOrder(order.userId, amount);
+      case "reverted":
+        this.processrevertedOrder(order.userId, amount);
         break;
       case "regular":
         this.processRegularOrder(
           order.userId,
           stockSymbol,
-          stockOption,
+          stockType,
           order.quantity
         );
         break;
@@ -260,8 +242,8 @@ class EngineManager {
     }
   }
 
-  private processMintedOrder(userId: string, amount: number): void {
-    console.log("Processing Minted Order for", userId);
+  private processrevertedOrder(userId: string, amount: number): void {
+    console.log("Processing reverted Order for", userId);
     const userBalance = this.INR_BALANCES[userId];
     if (userBalance.locked < amount) {
       throw new Error(`Insufficient locked balance for user ${userId}`);
@@ -278,11 +260,11 @@ class EngineManager {
   private processRegularOrder(
     userId: string,
     stockSymbol: string,
-    stockOption: "yes" | "no",
+    stockType: "yes" | "no",
     quantity: number
   ): void {
     console.log("Processing regular Order for", userId);
-    const stockBalance = this.STOCK_BALANCES[userId][stockSymbol][stockOption];
+    const stockBalance = this.STOCK_BALANCES[userId][stockSymbol][stockType];
     if (stockBalance.locked < quantity) {
       throw new Error(`Insufficient locked stock quantity for user ${userId}`);
     }
@@ -323,7 +305,7 @@ class EngineManager {
         throw new Error("User doesn't exist");
       }
 
-      return { status: true, message: "USER_INR_FETCHED", balance: balance };
+      return { status: true, message: "USER_INR_FETCHED", msg: balance };
     } catch (error: any) {
       return { status: false, message: error.message };
     }
@@ -361,7 +343,7 @@ class EngineManager {
       return {
         status: true,
         message: "Successfully added the amount",
-        balance: { [userId]: this.INR_BALANCES[userId] },
+        msg: this.INR_BALANCES[userId],
       };
     } catch (error: any) {
       return {
@@ -388,15 +370,15 @@ class EngineManager {
 
   placeBuyOrder(orderData: OrderProps) {
     try {
-      const { userId, stockSymbol, quantity, price, stockOption } = orderData;
+      const { userId, stockSymbol, quantity, price, stockType } = orderData;
       let requiredQuantity = quantity;
-      const oppositeStockOption = stockOption === "yes" ? "no" : "yes";
-      const correspondingPrice = 10 - price;
+      const oppositestockType = stockType === "yes" ? "no" : "yes";
 
-      if (price > 10 || price < 0) {
+      if (price > 1000 || price < 0) {
         throw new Error("Invalid price , Price should be between 0 and 10");
       }
-
+      const stockPrice = price / 100;
+      const correspondingPrice = 10 - stockPrice;
       if (!this.INR_BALANCES[userId]) {
         throw new Error("User with the given Id  dosen't exist");
       }
@@ -428,8 +410,8 @@ class EngineManager {
           userId: userId,
           type: "BUY",
           stockSymbol: stockSymbol,
-          stockOption: stockOption,
-          price: price,
+          stockType: stockType,
+          price: stockPrice,
           quantity: requiredQuantity,
           filledQty: 0,
           status: "PENDING",
@@ -438,32 +420,34 @@ class EngineManager {
 
       // if total is greater than the required quantity , then we'll proceed , no need to create corrosponding sell orders
       if (
-        this.ORDERBOOK[stockSymbol][stockOption][price] &&
-        this.ORDERBOOK[stockSymbol][stockOption][price].total >=
+        this.ORDERBOOK[stockSymbol][stockType][stockPrice] &&
+        this.ORDERBOOK[stockSymbol][stockType][stockPrice].total >=
           requiredQuantity
       ) {
-        this.ORDERBOOK[stockSymbol][stockOption][price].total -=
+        this.ORDERBOOK[stockSymbol][stockType][stockPrice].total -=
           requiredQuantity;
 
-        for (const sellOrderId in this.ORDERBOOK[stockSymbol][stockOption][
-          price
+        for (const sellOrderId in this.ORDERBOOK[stockSymbol][stockType][
+          stockPrice
         ].orders) {
           const sellerOrder =
-            this.ORDERBOOK[stockSymbol][stockOption][price].orders[sellOrderId];
+            this.ORDERBOOK[stockSymbol][stockType][stockPrice].orders[
+              sellOrderId
+            ];
           if (sellerOrder.quantity > 0) {
             const availableQuantity = Math.min(
               sellerOrder.quantity,
               requiredQuantity
             );
 
-            if (sellerOrder.type === "minted") {
+            if (sellerOrder.type === "reverted") {
               // mint the required tokens
               this.mintStocks(
                 userId,
                 stockSymbol,
                 sellerOrder.userId,
-                price,
-                stockOption,
+                stockPrice,
+                stockType,
                 availableQuantity
               );
             } else {
@@ -472,8 +456,8 @@ class EngineManager {
                 userId,
                 stockSymbol,
                 sellerOrder.userId,
-                price,
-                stockOption,
+                stockPrice,
+                stockType,
                 availableQuantity
               );
             }
@@ -500,7 +484,7 @@ class EngineManager {
               },
             });
 
-            this.ORDERBOOK[stockSymbol][stockOption][price].orders[
+            this.ORDERBOOK[stockSymbol][stockType][stockPrice].orders[
               sellOrderId
             ].quantity -= availableQuantity;
 
@@ -516,6 +500,13 @@ class EngineManager {
             data: { [userId]: this.INR_BALANCES[userId] },
           });
 
+          redisManager.sendUpdatesToWs(
+            stockSymbol,
+            this.ORDERBOOK[stockSymbol]
+          );
+
+          console.log("reached her 3");
+
           return {
             status: true,
             message: "Successfully bought the required quantity",
@@ -527,14 +518,14 @@ class EngineManager {
         // traverse through the sell orders , and swap available , and send the minting flow for the required ones .
 
         if (
-          this.ORDERBOOK[stockSymbol][stockOption][price] &&
-          this.ORDERBOOK[stockSymbol][stockOption][price].total > 0
+          this.ORDERBOOK[stockSymbol][stockType][stockPrice] &&
+          this.ORDERBOOK[stockSymbol][stockType][stockPrice].total > 0
         ) {
-          for (const sellerOrderId in this.ORDERBOOK[stockSymbol][stockOption][
-            price
+          for (const sellerOrderId in this.ORDERBOOK[stockSymbol][stockType][
+            stockPrice
           ].orders) {
             const sellerOrder =
-              this.ORDERBOOK[stockSymbol][stockOption][price].orders[
+              this.ORDERBOOK[stockSymbol][stockType][stockPrice].orders[
                 sellerOrderId
               ];
             if (sellerOrder.quantity > 0) {
@@ -543,13 +534,13 @@ class EngineManager {
                 requiredQuantity
               );
 
-              if (sellerOrder.type === "minted") {
+              if (sellerOrder.type === "reverted") {
                 this.mintStocks(
                   userId,
                   stockSymbol,
                   sellerOrder.userId,
-                  price,
-                  stockOption,
+                  stockPrice,
+                  stockType,
                   availableQuantity
                 );
               } else {
@@ -558,23 +549,22 @@ class EngineManager {
                   userId,
                   stockSymbol,
                   sellerOrder.userId,
-                  price,
-                  stockOption,
+                  stockPrice,
+                  stockType,
                   availableQuantity
                 );
               }
 
               if (sellerOrder.quantity < requiredQuantity) {
-                delete this.ORDERBOOK[stockSymbol][stockOption][price].orders[
-                  sellerOrderId
-                ];
+                delete this.ORDERBOOK[stockSymbol][stockType][stockPrice]
+                  .orders[sellerOrderId];
               } else {
-                this.ORDERBOOK[stockSymbol][stockOption][price].orders[
+                this.ORDERBOOK[stockSymbol][stockType][stockPrice].orders[
                   sellerOrderId
                 ].quantity -= availableQuantity;
               }
 
-              this.ORDERBOOK[stockSymbol][stockOption][price].total -=
+              this.ORDERBOOK[stockSymbol][stockType][stockPrice].total -=
                 availableQuantity;
 
               requiredQuantity -= availableQuantity;
@@ -606,24 +596,23 @@ class EngineManager {
         }
 
         if (
-          !this.ORDERBOOK[stockSymbol][oppositeStockOption][correspondingPrice]
+          !this.ORDERBOOK[stockSymbol][oppositestockType][correspondingPrice]
         ) {
-          this.ORDERBOOK[stockSymbol][oppositeStockOption][correspondingPrice] =
-            {
-              total: 0,
-              orders: {},
-            };
+          this.ORDERBOOK[stockSymbol][oppositestockType][correspondingPrice] = {
+            total: 0,
+            orders: {},
+          };
         }
 
-        this.ORDERBOOK[stockSymbol][oppositeStockOption][
+        this.ORDERBOOK[stockSymbol][oppositestockType][
           correspondingPrice
         ].total += requiredQuantity;
 
-        this.ORDERBOOK[stockSymbol][oppositeStockOption][
+        this.ORDERBOOK[stockSymbol][oppositestockType][
           correspondingPrice
         ].orders[orderId] = {
           quantity: requiredQuantity,
-          type: "minted",
+          type: "reverted",
           userId: userId,
         };
 
@@ -636,6 +625,8 @@ class EngineManager {
           data: { [userId]: this.INR_BALANCES[userId] },
         });
       }
+      redisManager.sendUpdatesToWs(stockSymbol, this.ORDERBOOK[stockSymbol]);
+      console.log("reached here");
 
       return {
         status: true,
@@ -650,10 +641,11 @@ class EngineManager {
 
   placeSellOrder(orderData: OrderProps) {
     try {
-      const { userId, stockSymbol, quantity, price, stockOption } = orderData;
-      if (price > 10 || price < 0) {
+      const { userId, stockSymbol, quantity, price, stockType } = orderData;
+      if (price > 1000 || price < 0) {
         throw new Error("Price should be between 0 and 10rs");
       }
+      const stockPrice = price / 100;
 
       if (!this.INR_BALANCES[userId]) {
         throw new Error("User with the given Id dosen't exists");
@@ -665,8 +657,7 @@ class EngineManager {
       }
       if (
         !this.STOCK_BALANCES[userId][stockSymbol] ||
-        this.STOCK_BALANCES[userId][stockSymbol][stockOption].quantity <
-          quantity
+        this.STOCK_BALANCES[userId][stockSymbol][stockType].quantity < quantity
       ) {
         throw new Error("User dosen't have the required qty.");
       }
@@ -675,27 +666,26 @@ class EngineManager {
         this.ORDERBOOK[stockSymbol] = { yes: {}, no: {} };
       }
 
-      if (!this.ORDERBOOK[stockSymbol][stockOption][price]) {
-        this.ORDERBOOK[stockSymbol][stockOption][price] = {
+      if (!this.ORDERBOOK[stockSymbol][stockType][stockPrice]) {
+        this.ORDERBOOK[stockSymbol][stockType][stockPrice] = {
           total: 0,
           orders: {},
         };
       }
 
-      this.ORDERBOOK[stockSymbol][stockOption][price].total += quantity;
+      this.ORDERBOOK[stockSymbol][stockType][stockPrice].total += quantity;
 
       // generate nano id
 
       const orderId = nanoid();
 
-      this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId] = {
+      this.ORDERBOOK[stockSymbol][stockType][stockPrice].orders[orderId] = {
         quantity: quantity,
         type: "regular",
         userId: userId,
       };
-      this.STOCK_BALANCES[userId][stockSymbol][stockOption].quantity -=
-        quantity;
-      this.STOCK_BALANCES[userId][stockSymbol][stockOption].locked += quantity;
+      this.STOCK_BALANCES[userId][stockSymbol][stockType].quantity -= quantity;
+      this.STOCK_BALANCES[userId][stockSymbol][stockType].locked += quantity;
 
       redisManager.sendDataToDB_Engine({
         action: "UPSERT_ORDER",
@@ -704,8 +694,8 @@ class EngineManager {
           userId: userId,
           type: "SELL",
           stockSymbol: stockSymbol,
-          stockOption: stockOption,
-          price: price,
+          stockType: stockType,
+          price: stockPrice,
           quantity: quantity,
           filledQty: 0,
           status: "PENDING",
@@ -730,11 +720,11 @@ class EngineManager {
 
   cancelOrder(cancelData: CancelOrderProps) {
     try {
-      const { userId, stockSymbol, price, orderId, stockOption } = cancelData;
+      const { userId, stockSymbol, price, orderId, stockType } = cancelData;
 
-      console.log("stockOption", stockOption);
+      console.log("stockType", stockType);
       console.log("price", price);
-      console.log("--", this.ORDERBOOK[stockSymbol][stockOption]);
+      console.log("--", this.ORDERBOOK[stockSymbol][stockType]);
       if (!this.INR_BALANCES[userId]) {
         throw new Error("User with the given Id dosen't exists");
       }
@@ -747,8 +737,8 @@ class EngineManager {
       console.log("2345");
 
       if (
-        !this.ORDERBOOK[stockSymbol][stockOption][price] ||
-        !this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId]
+        !this.ORDERBOOK[stockSymbol][stockType][price] ||
+        !this.ORDERBOOK[stockSymbol][stockType][price].orders[orderId]
       ) {
         throw new Error("Order dosen't exist");
       }
@@ -756,8 +746,8 @@ class EngineManager {
       console.log("123456");
 
       if (
-        this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId]
-          .userId !== userId
+        this.ORDERBOOK[stockSymbol][stockType][price].orders[orderId].userId !==
+        userId
       ) {
         throw new Error(
           "User dosen't have the required permissions to cancel the order"
@@ -765,20 +755,20 @@ class EngineManager {
       }
 
       const order =
-        this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId];
+        this.ORDERBOOK[stockSymbol][stockType][price].orders[orderId];
 
-      if (order.type === "minted") {
+      if (order.type === "reverted") {
         this.INR_BALANCES[userId].locked -= order.quantity * price;
         this.INR_BALANCES[userId].balance += order.quantity * price;
       } else {
-        this.STOCK_BALANCES[userId][stockSymbol][stockOption].locked -=
+        this.STOCK_BALANCES[userId][stockSymbol][stockType].locked -=
           order.quantity;
-        this.STOCK_BALANCES[userId][stockSymbol][stockOption].quantity +=
+        this.STOCK_BALANCES[userId][stockSymbol][stockType].quantity +=
           order.quantity;
       }
 
-      delete this.ORDERBOOK[stockSymbol][stockOption][price].orders[orderId];
-      this.ORDERBOOK[stockSymbol][stockOption][price].total -= order.quantity;
+      delete this.ORDERBOOK[stockSymbol][stockType][price].orders[orderId];
+      this.ORDERBOOK[stockSymbol][stockType][price].total -= order.quantity;
 
       redisManager.sendDataToDB_Engine({
         action: "UPDATE_STOCK_BALANCE",
@@ -805,7 +795,7 @@ class EngineManager {
 
   createMarket(data: any) {
     try {
-      const stockSymbol = data?.stockSymbol;
+      const stockSymbol = data;
 
       if (!stockSymbol) {
         throw new Error("Stock Symbol is required");
@@ -901,7 +891,7 @@ class EngineManager {
       if (!market) {
         throw new Error("Market dosen't exist");
       }
-      return { status: true, message: "MARKET_FETCHED", market: market };
+      return { status: true, message: "MARKET_FETCHED", msg: market };
     } catch (error: any) {
       return { status: false, message: error.message };
     }
@@ -929,6 +919,22 @@ class EngineManager {
         status: true,
         message: "Stock Symbols fetched successfully",
         data: Object.keys(this.ORDERBOOK),
+      };
+    } catch (error: any) {
+      return {
+        status: false,
+        message: error.message,
+      };
+    }
+  }
+
+  resetData() {
+    try {
+      this.ORDERBOOK = {};
+      this.INR_BALANCES = {};
+      this.STOCK_BALANCES = {};
+      return {
+        status: true,
       };
     } catch (error: any) {
       return {

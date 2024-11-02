@@ -31,6 +31,16 @@ app.post("/onramp/inr", async (req: any, res: any) => {
   res.json(response);
 });
 
+app.post("/reset", async (req: any, res: any) => {
+  const response = await redisManager.sendRequestAndSubscribe({
+    action: "RESET",
+    data: {},
+  });
+
+  console.log("Response Recieved", response);
+  res.json(response);
+});
+
 async function startServer() {
   try {
     await redisManager;

@@ -5,11 +5,18 @@ const redisURL = process.env.URL || "redis://localhost:6379";
 const redisClient = createClient({ url: redisURL });
 
 async function SendOrderBookToSubscribers(symbol: string, orderBook: any) {
+  console.log("Sending order book to subscribers");
+  console.log("abc", symbol, orderBook);
   const subscription = SubsriptionData.find((data) => data.symbol === symbol);
 
   if (subscription) {
     subscription.subscribers.forEach((subscriber) => {
-      subscriber.send(JSON.stringify(orderBook));
+      subscriber.send(
+        JSON.stringify({
+          event: "event_orderbook_update",
+          message: orderBook[symbol],
+        })
+      );
     });
   }
 }
@@ -23,10 +30,11 @@ const SubsriptionData: {
 
 async function handleIncomingRequests(message: any, ws: WebSocket) {
   const messageString = message.toString();
+  console.log("message", messageString);
 
-  const { method, symbol } = JSON.parse(messageString);
+  const { type: method, stockSymbol: symbol } = JSON.parse(messageString);
   if (!method || !symbol) {
-    ws.send("Hit me up with a subscription or unsubscription request");
+    // ws.send("Hit me up with a subscription or unsubscription request");
     return;
   }
   if (method === "subscribe") {
@@ -45,7 +53,7 @@ async function handleIncomingRequests(message: any, ws: WebSocket) {
       });
     }
     subscription.subscribers.push(ws);
-    ws.send("Hello! You are successfully subsrcibed to " + symbol);
+    // ws.send("Hello! You are successfully subsrcibed to " + symbol);
   } else if (method === "unsubscribe") {
     const subscription = SubsriptionData.find((data) => data.symbol === symbol);
 
