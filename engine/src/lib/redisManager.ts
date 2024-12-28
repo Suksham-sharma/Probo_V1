@@ -8,6 +8,7 @@ class RedisManager {
   private DBQueue: RedisClientType;
   private redisURL = process.env.REDIS_URL || "redis://localhost:6379";
   constructor() {
+    console.log(this.redisURL);
     try {
       this.queueClient = createClient({ url: this.redisURL });
       this.queueClient.connect();
