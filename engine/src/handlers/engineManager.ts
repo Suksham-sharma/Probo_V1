@@ -1,4 +1,4 @@
-import { nanoid } from "nanoid";
+import { v4 as nanoid } from "uuid";
 
 import { redisManager } from "../lib/redisManager";
 import { s3Service } from "../lib/awsClient";
