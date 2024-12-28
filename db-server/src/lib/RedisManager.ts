@@ -6,6 +6,7 @@ class RedisManager {
   private queueClient: RedisClientType;
   static instance: RedisManager;
   private constructor() {
+    console.log("Redis URL: ", URL);
     this.queueClient = createClient({ url: URL });
     this.queueClient.connect();
   }

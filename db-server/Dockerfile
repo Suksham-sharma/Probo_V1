@@ -1,5 +1,6 @@
 FROM node:18-alpine AS builder
 
+RUN apk add --no-cache openssl libssl1.1
 
 WORKDIR /app
 
