@@ -1,0 +1,22 @@
+{
+  "name": "engine",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/redis": "^4.0.11"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.678.0",
+    "dotenv": "^16.4.5",
+    "nanoid": "^5.0.7",
+    "redis": "^4.7.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "bun run src/index.ts"
+  }
+}

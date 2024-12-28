@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://neondb_owner:vErlYsq1y8KS@ep-withered-poetry-a5oak948.us-east-2.aws.neon.tech/neondb?sslmode=require"
+}
+
+model User {
+  id            String @id @unique
+  stockBalances Json
+}
+
+model InrBalances {
+  id      Int    @id @default(autoincrement())
+  userId  String @unique
+  balance Float
+  locked  Float
+}
+
+enum OrderStatus {
+  PENDING
+  FILLED
+  CANCELLED
+}
+
+// fetch all completed orders, for user1 
+// fetch all pending orders, for user1
+// fetch all cancelled orders, for user1
+
+model Order {
+  id          String      @id
+  userId      String
+  type        String
+  quantity    Int
+  price       Float
+  status      OrderStatus
+  stockSymbol String
+  filledQty   Int
+  stockType   String // yes - no 
+  createdAt   DateTime    @default(now())
+}
+
+enum TransactionType {
+  SOLD
+  BOUGHT
+  CANCEL
+  DEPOSIT
+}
+
+model Transaction {
+  id              Int             @id @default(autoincrement())
+  mainUserId      String
+  associateUserId String?
+  type            TransactionType
+  quantity        Int?
+  price           Float?
+  amount          Float?
+  stockSymbol     String?
+  stockType       String?
+  createdAt       DateTime        @default(now())
+}
+
+model Market {
+  id            Int    @id @default(autoincrement())
+  stockSymbol   String @unique
+  type          String
+  sourceOfTruth String
+  heading       String
+  eventType     String
+
+  repeatTime   Int
+  endAfterTime Int
+  createdAt    DateTime @default(now())
+  activeStatus String   @default("ACTIVE")
+}
