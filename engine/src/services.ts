@@ -1,5 +1,5 @@
-import { engineManger } from "handlers/engineManager";
-import { redisManager } from "lib/redisManager";
+import { engineManger } from "./handlers/engineManager";
+import { redisManager } from "./lib/redisManager";
 
 export function handleIncomingRequests(subscriptionId: string, message: any) {
   switch (message.action) {

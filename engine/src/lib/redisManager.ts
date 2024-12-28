@@ -1,5 +1,5 @@
 import { createClient, type RedisClientType } from "redis";
-import { handleIncomingRequests } from "services";
+import { handleIncomingRequests } from "../services";
 
 class RedisManager {
   static instance: RedisManager;

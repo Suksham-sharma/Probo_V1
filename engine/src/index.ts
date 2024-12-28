@@ -1,4 +1,4 @@
-import { redisManager } from "lib/redisManager";
+import { redisManager } from "./lib/redisManager";
 
 async function main() {
   while (true) {
