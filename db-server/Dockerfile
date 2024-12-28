@@ -14,7 +14,7 @@ COPY . .
 
 
 RUN npm install -g typescript ts-node
-RUN npm install --save-dev @types/nod
+RUN npm install --save-dev @types/node
 
 
 RUN tsc
