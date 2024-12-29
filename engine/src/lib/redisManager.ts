@@ -11,6 +11,7 @@ class RedisManager {
     this.queueClient = createClient({ url: this.redisURL });
     this.publisherClient = createClient({ url: this.redisURL });
     this.DBQueue = createClient({ url: this.redisURL });
+    this.initialize();
   }
 
   async initialize() {
@@ -61,10 +62,4 @@ class RedisManager {
   };
 }
 
-const initializedRedisManager = (async () => {
-  const redisManager = RedisManager.getInstance();
-  await redisManager.initialize();
-  return redisManager;
-})();
-
-export default initializedRedisManager;
+export const redisManager = RedisManager.getInstance();
