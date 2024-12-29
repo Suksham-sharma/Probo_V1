@@ -8,17 +8,19 @@ class RedisManager {
   private DBQueue: RedisClientType;
   private redisURL = process.env.REDIS_URL || "redis://localhost:6379";
   constructor() {
-    console.log(this.redisURL);
+    this.queueClient = createClient({ url: this.redisURL });
+    this.publisherClient = createClient({ url: this.redisURL });
+    this.DBQueue = createClient({ url: this.redisURL });
+  }
+
+  async initialize() {
     try {
-      this.queueClient = createClient({ url: this.redisURL });
-      this.queueClient.connect();
-      this.publisherClient = createClient({ url: this.redisURL });
-      this.publisherClient.connect();
-      this.DBQueue = createClient();
-      this.DBQueue.connect();
+      await this.queueClient.connect();
+      await this.publisherClient.connect();
+      await this.DBQueue.connect();
       console.log("Connected to Redis Clients 🚀");
-    } catch (error) {
-      throw new Error(`Error connecting to Redis: ${error}`);
+    } catch (error: unknown) {
+      console.error("Error connecting to Redis:", error);
     }
   }
 
@@ -59,4 +61,10 @@ class RedisManager {
   };
 }
 
-export const redisManager = RedisManager.getInstance();
+const initializedRedisManager = (async () => {
+  const redisManager = RedisManager.getInstance();
+  await redisManager.initialize();
+  return redisManager;
+})();
+
+export default initializedRedisManager;
