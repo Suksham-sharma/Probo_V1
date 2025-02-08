@@ -1,11 +1,13 @@
 import { createClient, type RedisClientType } from "redis";
 import { handleIncomingRequests } from "../services";
 
+const URL = process.env.REDIS_URL || "redis://localhost:6379";
 class RedisManager {
   private queueClient: RedisClientType;
   static instance: RedisManager;
   private constructor() {
-    this.queueClient = createClient();
+    console.log("Redis URL: ", URL);
+    this.queueClient = createClient({ url: URL });
     this.queueClient.connect();
   }
 
